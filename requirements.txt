@@ -1,0 +1,18 @@
+# Simulation, kinematics, optimization, planning, point clouds (pydrake)
+drake
+# Course helpers: station/scenario loading, models (manipulation.station, etc.)
+manipulation
+
+# Numerics, voxel maps, sensor/noise models
+numpy
+scipy
+
+# Color segmentation of the target in RGB images
+opencv-python-headless
+
+# Experiment logging and analysis (trials x methods x smoke levels)
+pandas
+matplotlib
+
+# Notebooks for analysis and demos
+ipykernel
