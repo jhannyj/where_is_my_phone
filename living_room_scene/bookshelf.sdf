@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="bookshelf">
+    <link name="base_link">
+      <collision name="body_collision"><pose>0 0 0.95 0 0 0</pose><geometry><box><size>0.35 1 1.9</size></box></geometry></collision>
+      <visual name="body_visual"><pose>0 0 0.95 0 0 0</pose><geometry><box><size>0.35 1 1.9</size></box></geometry><material><diffuse>0.55 0.35 0.2 1</diffuse></material></visual>
+    </link>
+  </model>
+</sdf>

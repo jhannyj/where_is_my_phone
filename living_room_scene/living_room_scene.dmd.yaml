@@ -1,0 +1,84 @@
+# Living room, 10 m x 10 m, x,y in [-5, 5], floor top at z = 0.
+# Model "front" is local +x. Everything is welded to the world here, so placement lives in this file.
+directives:
+
+# --- Room ---
+- add_model:
+    name: room
+    file: package://living_room/models/room.sdf
+- add_weld:
+    parent: world
+    child: room::base_link
+
+# --- Couch (faces +x, toward the TV) ---
+- add_model:
+    name: couch
+    file: package://living_room/models/couch.sdf
+- add_weld:
+    parent: world
+    child: couch::base_link
+    X_PC:
+      translation: [1.5, 0, 0]
+      rotation: !Rpy { deg: [0, 0, 0] }
+
+# --- Coffee table (in front of couch) ---
+- add_model:
+    name: coffee_table
+    file: package://living_room/models/coffee_table.sdf
+- add_weld:
+    parent: world
+    child: coffee_table::base_link
+    X_PC:
+      translation: [2.8, 0, 0]
+      rotation: !Rpy { deg: [0, 0, 0] }
+
+# --- TV shelf against east wall (x = 5), facing -x ---
+- add_model:
+    name: tv_shelf
+    file: package://living_room/models/tv_shelf.sdf
+- add_weld:
+    parent: world
+    child: tv_shelf::base_link
+    X_PC:
+      translation: [4.8, 0, 0]
+      rotation: !Rpy { deg: [0, 0, 180] }
+
+# --- TV on top of the shelf (shelf top is at z = 0.45) ---
+- add_model:
+    name: tv
+    file: package://living_room/models/tv.sdf
+- add_weld:
+    parent: tv_shelf::base_link
+    child: tv::base_link
+    X_PC:
+      translation: [0, 0, 0.45]
+
+# --- Two bookshelves against north wall (y = 5), facing -y ---
+- add_model:
+    name: bookshelf_1
+    file: package://living_room/models/bookshelf.sdf
+- add_weld:
+    parent: world
+    child: bookshelf_1::base_link
+    X_PC:
+      translation: [0.6, 4.825, 0]
+      rotation: !Rpy { deg: [0, 0, -90] }
+- add_model:
+    name: bookshelf_2
+    file: package://living_room/models/bookshelf.sdf
+- add_weld:
+    parent: world
+    child: bookshelf_2::base_link
+    X_PC:
+      translation: [1.65, 4.825, 0]
+      rotation: !Rpy { deg: [0, 0, -90] }
+
+# --- Floor lamp in the north-east corner ---
+- add_model:
+    name: floor_lamp
+    file: package://living_room/models/floor_lamp.sdf
+- add_weld:
+    parent: world
+    child: floor_lamp::base_link
+    X_PC:
+      translation: [4.6, 4.6, 0]

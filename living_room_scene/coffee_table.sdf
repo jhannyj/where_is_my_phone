@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="coffee_table">
+    <!-- Legs are visual-only; 0.40 m clearance under the top. -->
+    <link name="base_link">
+      <collision name="top_collision"><pose>0 0 0.425 0 0 0</pose><geometry><box><size>0.6 1.2 0.05</size></box></geometry></collision>
+      <visual name="top_visual"><pose>0 0 0.425 0 0 0</pose><geometry><box><size>0.6 1.2 0.05</size></box></geometry><material><diffuse>0.55 0.35 0.2 1</diffuse></material></visual>
+      <visual name="leg0_visual"><pose>0.26 0.56 0.2 0 0 0</pose><geometry><cylinder><radius>0.025</radius><length>0.4</length></cylinder></geometry><material><diffuse>0.1 0.1 0.1 1</diffuse></material></visual>
+      <visual name="leg1_visual"><pose>0.26 -0.56 0.2 0 0 0</pose><geometry><cylinder><radius>0.025</radius><length>0.4</length></cylinder></geometry><material><diffuse>0.1 0.1 0.1 1</diffuse></material></visual>
+      <visual name="leg2_visual"><pose>-0.26 0.56 0.2 0 0 0</pose><geometry><cylinder><radius>0.025</radius><length>0.4</length></cylinder></geometry><material><diffuse>0.1 0.1 0.1 1</diffuse></material></visual>
+      <visual name="leg3_visual"><pose>-0.26 -0.56 0.2 0 0 0</pose><geometry><cylinder><radius>0.025</radius><length>0.4</length></cylinder></geometry><material><diffuse>0.1 0.1 0.1 1</diffuse></material></visual>
+    </link>
+  </model>
+</sdf>
