@@ -1,0 +1,43 @@
+directives:
+  # Add your custom mobile base
+  - add_model:
+      name: mobile_base
+      file: package://custom_models/mobile_base.sdf
+
+  # Add the KUKA iiwa (updated drake_models path)
+  - add_model:
+      name: iiwa
+      file: package://drake_models/iiwa_description/sdf/iiwa7_no_collision.sdf
+
+  # Weld iiwa to base
+  - add_weld:
+      parent: mobile_base::chassis_link
+      child: iiwa::iiwa_link_0
+      X_PC:
+        translation: [0, 0, 0.2]
+
+  # Add the WSG 50 Gripper (updated drake_models path)
+  - add_model:
+      name: wsg
+      file: package://drake_models/wsg_50_description/sdf/schunk_wsg_50_with_tip.sdf
+
+  # Weld gripper to iiwa
+  - add_weld:
+      parent: iiwa::iiwa_link_7
+      child: wsg::body
+      X_PC:
+        translation: [0, 0, 0.09]
+        rotation: !Rpy { deg: [90, 0, 90] }
+
+  # Add the ZED Camera
+  - add_model:
+      name: zed_camera
+      file: package://custom_models/zed_camera.sdf
+
+  # Weld camera to iiwa
+  - add_weld:
+      parent: iiwa::iiwa_link_7
+      child: zed_camera::camera_body
+      X_PC:
+        translation: [0.04, 0.0, 0.07]
+        rotation: !Rpy { deg: [0, -90, 0] }

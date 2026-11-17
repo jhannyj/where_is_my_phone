@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="mobile_base">
+    <link name="chassis_link">
+      <inertial>
+        <mass>100.0</mass>
+        <inertia>
+          <ixx>2.0</ixx><iyy>2.0</iyy><izz>2.0</izz>
+          <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+        </inertia>
+      </inertial>
+
+      <!-- Main Chassis -->
+      <visual name="chassis_visual">
+        <pose>0 0 0.1 0 0 0</pose>
+        <geometry><box><size>0.8 0.6 0.2</size></box></geometry>
+        <material><diffuse>0.3 0.3 0.3 1</diffuse></material>
+      </visual>
+      <collision name="chassis_collision">
+        <pose>0 0 0.1 0 0 0</pose>
+        <geometry><box><size>0.8 0.6 0.2</size></box></geometry>
+      </collision>
+
+      <!-- Front Left Wheel -->
+      <visual name="wheel_fl">
+        <pose>0.3 0.33 0 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
+        <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+
+      <!-- Front Right Wheel -->
+      <visual name="wheel_fr">
+        <pose>0.3 -0.33 0 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
+        <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+
+      <!-- Rear Left Wheel -->
+      <visual name="wheel_rl">
+        <pose>-0.3 0.33 0 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
+        <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+
+      <!-- Rear Right Wheel -->
+      <visual name="wheel_rr">
+        <pose>-0.3 -0.33 0 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
+        <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+    </link>
+  </model>
+</sdf>
