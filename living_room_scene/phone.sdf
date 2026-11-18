@@ -1,0 +1,66 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <model name="red_phone_box">
+    <static>false</static>
+    <!-- Positioned flat on the ground plane (z = thickness / 2) -->
+    <pose>0 0 0.004 0 0 0</pose>
+
+    <link name="phone_link">
+      <!-- Inertial properties for a 0.18 kg (180 g) uniform box -->
+      <inertial>
+        <mass>0.18</mass>
+        <inertia>
+          <ixx>0.00033846</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00008533</iyy>
+          <iyz>0</iyz>
+          <izz>0.00042187</izz>
+        </inertia>
+      </inertial>
+
+      <!-- Collision geometry with gripper-friendly friction and contact parameters -->
+      <collision name="phone_collision">
+        <geometry>
+          <box>
+            <size>0.075 0.150 0.008</size>
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.2</mu>
+              <mu2>1.2</mu2>
+            </ode>
+            <torsional>
+              <coefficient>1.0</coefficient>
+              <use_patch_radius>true</use_patch_radius>
+              <patch_radius>0.01</patch_radius>
+            </torsional>
+          </friction>
+          <contact>
+            <ode>
+              <kp>100000.0</kp>
+              <kd>100.0</kd>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+
+      <!-- Visual geometry and red color -->
+      <visual name="phone_visual">
+        <geometry>
+          <box>
+            <size>0.075 0.150 0.008</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>1 0 0 1</ambient>
+          <diffuse>1 0 0 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

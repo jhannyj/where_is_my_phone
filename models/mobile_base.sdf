@@ -51,3 +51,29 @@
     </link>
   </model>
 </sdf>
+
+<!-- X translation -->
+<link name="x_link"/>
+<joint name="x_joint" type="prismatic">
+  <parent link="world"/>
+  <child link="x_link"/>
+  <axis xyz="1 0 0"/>
+  <limit effort="100" lower="-10" upper="10" velocity="2.0"/>
+</joint>
+
+<!-- Y translation -->
+<link name="y_link"/>
+<joint name="y_joint" type="prismatic">
+  <parent link="x_link"/>
+  <child link="y_link"/>
+  <axis xyz="0 1 0"/>
+  <limit effort="100" lower="-10" upper="10" velocity="2.0"/>
+</joint>
+
+<!-- 3. Revolute joint for yaw rotation -->
+<joint name="yaw_joint" type="revolute">
+  <parent link="y_link"/>
+  <child link="base_link"/>
+  <axis xyz="0 0 1"/>
+  <limit effort="100" lower="-3.14" upper="3.14" velocity="2.0"/>
+</joint>
