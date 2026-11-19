@@ -4,10 +4,10 @@ directives:
       name: mobile_base
       file: package://custom_models/mobile_base.sdf
 
-  # Add the KUKA iiwa (updated drake_models path)
+  # Add the KUKA iiwa 14 with primitive collision geometry (docs/DECISIONS.md D-009)
   - add_model:
       name: iiwa
-      file: package://drake_models/iiwa_description/sdf/iiwa7_no_collision.sdf
+      file: package://drake_models/iiwa_description/urdf/iiwa14_primitive_collision.urdf
 
   # Weld iiwa to base
   - add_weld:

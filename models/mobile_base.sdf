@@ -1,7 +1,24 @@
 <?xml version="1.0"?>
 <sdf version="1.7">
+  <!--
+    Holonomic mobile base: three actuated virtual joints from the world,
+      world --(x_joint, prismatic)--> x_link --(y_joint, prismatic)--> y_link
+            --(yaw_joint, continuous)--> chassis_link
+    The wheels are visual only (we do not simulate wheel contact); the virtual
+    joints carry the base. See docs/DECISIONS.md D-001.
+    chassis_link's frame sits at wheel-axle height (z = 0.12 m), so the wheels
+    touch the floor and the chassis bottom has 0.12 m of ground clearance.
+  -->
   <model name="mobile_base">
+    <link name="x_link">
+      <inertial><mass>0.01</mass><inertia><ixx>1e-5</ixx><iyy>1e-5</iyy><izz>1e-5</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
+    </link>
+    <link name="y_link">
+      <inertial><mass>0.01</mass><inertia><ixx>1e-5</ixx><iyy>1e-5</iyy><izz>1e-5</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
+    </link>
+
     <link name="chassis_link">
+      <pose>0 0 0.12 0 0 0</pose>
       <inertial>
         <mass>100.0</mass>
         <inertia>
@@ -21,59 +38,51 @@
         <geometry><box><size>0.8 0.6 0.2</size></box></geometry>
       </collision>
 
-      <!-- Front Left Wheel -->
+      <!-- Front marker (+x) so heading is visible -->
+      <visual name="front_marker">
+        <pose>0.39 0 0.17 0 0 0</pose>
+        <geometry><box><size>0.04 0.2 0.04</size></box></geometry>
+        <material><diffuse>0.95 0.8 0.1 1</diffuse></material>
+      </visual>
+
+      <!-- Wheels (visual only) -->
       <visual name="wheel_fl">
         <pose>0.3 0.33 0 1.5708 0 0</pose>
         <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
         <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
       </visual>
-
-      <!-- Front Right Wheel -->
       <visual name="wheel_fr">
         <pose>0.3 -0.33 0 1.5708 0 0</pose>
         <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
         <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
       </visual>
-
-      <!-- Rear Left Wheel -->
       <visual name="wheel_rl">
         <pose>-0.3 0.33 0 1.5708 0 0</pose>
         <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
         <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
       </visual>
-
-      <!-- Rear Right Wheel -->
       <visual name="wheel_rr">
         <pose>-0.3 -0.33 0 1.5708 0 0</pose>
         <geometry><cylinder><radius>0.12</radius><length>0.06</length></cylinder></geometry>
         <material><diffuse>0.05 0.05 0.05 1</diffuse></material>
       </visual>
     </link>
+
+    <joint name="x_joint" type="prismatic">
+      <parent>world</parent>
+      <child>x_link</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-10</lower><upper>10</upper><effort>2000</effort><velocity>2.0</velocity></limit></axis>
+    </joint>
+    <joint name="y_joint" type="prismatic">
+      <parent>x_link</parent>
+      <child>y_link</child>
+      <axis><xyz>0 1 0</xyz><limit><lower>-10</lower><upper>10</upper><effort>2000</effort><velocity>2.0</velocity></limit></axis>
+    </joint>
+    <!-- Continuous (no limits) so the base can turn the short way round. -->
+    <joint name="yaw_joint" type="continuous">
+      <parent>y_link</parent>
+      <child>chassis_link</child>
+      <axis><xyz>0 0 1</xyz><limit><effort>1000</effort><velocity>2.0</velocity></limit></axis>
+    </joint>
   </model>
 </sdf>
-
-<!-- X translation -->
-<link name="x_link"/>
-<joint name="x_joint" type="prismatic">
-  <parent link="world"/>
-  <child link="x_link"/>
-  <axis xyz="1 0 0"/>
-  <limit effort="100" lower="-10" upper="10" velocity="2.0"/>
-</joint>
-
-<!-- Y translation -->
-<link name="y_link"/>
-<joint name="y_joint" type="prismatic">
-  <parent link="x_link"/>
-  <child link="y_link"/>
-  <axis xyz="0 1 0"/>
-  <limit effort="100" lower="-10" upper="10" velocity="2.0"/>
-</joint>
-
-<!-- 3. Revolute joint for yaw rotation -->
-<joint name="yaw_joint" type="revolute">
-  <parent link="y_link"/>
-  <child link="base_link"/>
-  <axis xyz="0 0 1"/>
-  <limit effort="100" lower="-3.14" upper="3.14" velocity="2.0"/>
-</joint>
