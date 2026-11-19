@@ -1,21 +1,22 @@
 <?xml version="1.0" ?>
-<sdf version="1.8">
+<sdf version="1.8" xmlns:drake="http://drake.mit.edu">
   <model name="red_phone_box">
     <static>false</static>
-    <!-- Positioned flat on the ground plane (z = thickness / 2) -->
-    <pose>0 0 0.004 0 0 0</pose>
+    <!-- 7.5 x 15 x 1.5 cm (a phone in a rugged case; thickened from 0.8 cm so
+         the WSG fingertips have room above the support surface, D-011).
+         Placement lives in living_room_scene.dmd.yaml. -->
 
     <link name="phone_link">
-      <!-- Inertial properties for a 0.18 kg (180 g) uniform box -->
+      <!-- Inertial properties for a 0.18 kg uniform 0.075 x 0.15 x 0.015 box -->
       <inertial>
         <mass>0.18</mass>
         <inertia>
-          <ixx>0.00033846</ixx>
+          <ixx>0.00034088</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>0.00008533</iyy>
+          <iyy>0.00008775</iyy>
           <iyz>0</iyz>
-          <izz>0.00042187</izz>
+          <izz>0.00042188</izz>
         </inertia>
       </inertial>
 
@@ -23,36 +24,26 @@
       <collision name="phone_collision">
         <geometry>
           <box>
-            <size>0.075 0.150 0.008</size>
+            <size>0.075 0.150 0.015</size>
           </box>
         </geometry>
-        <surface>
-          <friction>
-            <ode>
-              <mu>1.2</mu>
-              <mu2>1.2</mu2>
-            </ode>
-            <torsional>
-              <coefficient>1.0</coefficient>
-              <use_patch_radius>true</use_patch_radius>
-              <patch_radius>0.01</patch_radius>
-            </torsional>
-          </friction>
-          <contact>
-            <ode>
-              <kp>100000.0</kp>
-              <kd>100.0</kd>
-              <min_depth>0.001</min_depth>
-            </ode>
-          </contact>
-        </surface>
+        <!-- Drake reads contact parameters from drake:proximity_properties
+             (it ignores Gazebo's <surface><ode> tags). Without an explicit
+             stiffness the light phone sank ~8 mm into the table. Same
+             friction (1.2) and stiffness (1e5 N/m) as originally intended. -->
+        <drake:proximity_properties>
+          <drake:mu_static>1.2</drake:mu_static>
+          <drake:mu_dynamic>1.2</drake:mu_dynamic>
+          <drake:point_contact_stiffness>1e5</drake:point_contact_stiffness>
+          <drake:hunt_crossley_dissipation>10</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
 
       <!-- Visual geometry and red color -->
       <visual name="phone_visual">
         <geometry>
           <box>
-            <size>0.075 0.150 0.008</size>
+            <size>0.075 0.150 0.015</size>
           </box>
         </geometry>
         <material>

@@ -52,3 +52,17 @@ python -m wimp.drive_to_goal --goal 3.0 3.5 1.57 --seed 3
 Plans an (x, y, yaw) path with RRT-Connect, simulates the mobile
 manipulator tracking it, and saves a Meshcat replay to `outputs/drive_to_goal.html`.
 Design choices are documented in `docs/DECISIONS.md`.
+
+## Fetch the phone (known pose)
+
+```sh
+python -m wimp.fetch_phone                       # phone at its scene pose
+python -m wimp.fetch_phone --phone 2.7 0.2 135   # x, y, yaw (deg) on the coffee table
+```
+
+Samples antipodal grasps, picks a parking pose by expected reachability,
+drives there (RRT-Connect), moves the arm to pre-grasp (joint-space
+RRT-Connect), approaches and lifts with differential IK, and simulates it all.
+It reports SUCCESS if the phone ends up at least 10 cm higher and still
+between the fingers. The replay is saved to `outputs/fetch_phone.html`; add
+`--verbose` for a grasp timeline.

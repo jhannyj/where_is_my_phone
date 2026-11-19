@@ -2,14 +2,15 @@
 # Model "front" is local +x. Everything is welded to the world here, so placement lives in this file.
 directives:
 
-# --- target phone ---
+# --- target phone: lying flat on the coffee table (top at z = 0.45) ---
+# z = table top + half thickness (0.0075) + 1 mm so it settles without popping.
 - add_model:
     name: phone
     file: package://living_room/phone.sdf
     default_free_body_pose:
         phone_link:
-            translation: [2.8, 0, 0]
-            rotation: !Rpy { deg: [70, 0, 0] }
+            translation: [2.85, -0.3, 0.4585]
+            rotation: !Rpy { deg: [0, 0, 20] }
 
 # --- Room ---
 - add_model:

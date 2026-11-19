@@ -37,7 +37,11 @@ optimization IK, diff-IK approach) → state machine coordinating everything.
    the options considered, what was chosen, why, and what would make us
    revisit it. This file is what we will draw on for the report and for
    answering staff questions, so keep it current.
-4. Code written as a stand-in (e.g. the placeholder robot) must be clearly
+4. Many choices are made "for now" to make progress. This is an
+   experiment, so when we hit real challenges, revisit them and test
+   alternatives. Keep the list under "Planned experiments" in
+   `docs/DECISIONS.md` current.
+5. Code written as a stand-in (e.g. the placeholder robot) must be clearly
    marked as such so it can be swapped for the teammates' real components.
 
 ## Current target
@@ -49,6 +53,10 @@ The vision-only search (11/13 milestone, method A) is NOT optional: it is
 the baseline the course requires us to compare against, and it shares almost
 all of its code with method B. Simplifications so far: the robot knows its
 own pose exactly (no vSLAM; see D-010).
+
+Status 2026-11-18: known-pose grasp-and-lift works (`wimp.fetch_phone`).
+Next: perception (voxel map, phone detection), so the phone pose is no
+longer privileged.
 
 ## Team and ownership (from the proposal)
 
@@ -69,8 +77,11 @@ own pose exactly (no vSLAM; see D-010).
   `view_robot.py` (repo root) shows the robot alone.
 - `wimp/` — Python code. `planning/rrt_connect.py` (generic RRT-Connect +
   shortcutting), `planning/base_planner.py` ((x, y, yaw) planning with Drake
-  collision checking, time parameterization), `drive_to_goal.py` (milestone 1
-  demo).
+  collision checking, time parameterization), `planning/planning_scene.py`
+  (shared collision checker), `planning/arm_planner.py`, `grasping/`
+  (antipodal sampling, floating-gripper filter, IK / diff IK, base
+  placement), `sim.py` (simulation + PD control), `drive_to_goal.py` and
+  `fetch_phone.py` (demos; fetch_phone = known-pose grasp-and-lift).
 - `tests/` — pytest tests.
 - `docs/DECISIONS.md` — algorithm decision log (see above).
 - `README.md` — environment setup (uv + Python 3.13 venv, `drake`,

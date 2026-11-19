@@ -7,6 +7,7 @@ them and sets the robot's start pose and stow posture.
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 from pydrake.all import (
@@ -15,6 +16,8 @@ from pydrake.all import (
     MeshcatParams,
     Parser,
     ProcessModelDirectives,
+    RigidTransform,
+    RollPitchYaw,
 )
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,9 +48,11 @@ def add_packages(parser: Parser) -> None:
     pm.Add("custom_models", os.path.join(REPO_ROOT, "models"))
 
 
-def load_scene(parser: Parser, scene_file: str = SCENE_FILE, base_start=DEFAULT_BASE_START):
+def load_scene(parser: Parser, scene_file: str = SCENE_FILE, base_start=DEFAULT_BASE_START,
+               phone_pose: Optional[RigidTransform] = None):
     """Add all scene models to parser's plant and set the robot's default
-    configuration. The plant is NOT finalized."""
+    configuration (and optionally override the phone's pose). The plant is
+    NOT finalized."""
     add_packages(parser)
     plant = parser.plant()
     models = ProcessModelDirectives(LoadModelDirectives(scene_file), plant, parser)
@@ -60,7 +65,15 @@ def load_scene(parser: Parser, scene_file: str = SCENE_FILE, base_start=DEFAULT_
     for joint in gripper_joints(plant):
         sign = -1.0 if "left" in joint.name() else 1.0
         joint.set_default_positions([sign * GRIPPER_OPEN])
+    if phone_pose is not None:
+        plant.SetDefaultFloatingBaseBodyPose(plant.GetBodyByName("phone_link"), phone_pose)
     return models
+
+
+def phone_on_table(x, y, yaw_deg, table_top=0.45, thickness=0.015) -> RigidTransform:
+    """Phone lying flat on a surface, 1 mm above it so it settles gently."""
+    return RigidTransform(RollPitchYaw(0, 0, np.deg2rad(yaw_deg)),
+                          [x, y, table_top + thickness / 2 + 0.001])
 
 
 def _one_dof_joints(plant, instance_name):
