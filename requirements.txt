@@ -1,5 +1,8 @@
-# Simulation, kinematics, optimization, planning, point clouds (pydrake)
-drake
+# Simulation, kinematics, optimization, planning, point clouds (pydrake).
+# Pinned so the whole team runs the same API (older Drake versions rename
+# some methods we use). 1.58.0 needs Python >= 3.12 and Apple Silicon macOS 26+
+# or Linux with glibc >= 2.34 (Ubuntu 22.04+); otherwise use Docker.
+drake==1.58.0
 # Course helpers: station/scenario loading, models (manipulation.station, etc.)
 manipulation
 

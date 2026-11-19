@@ -1,8 +1,11 @@
-from pydrake.all import StartMeshcat, ModelVisualizer
+from pydrake.all import ModelVisualizer
+
+from wimp.scene import start_meshcat
 
 def main():
-    # 1. Start the Meshcat server in the background
-    meshcat = StartMeshcat()
+    # 1. Start the Meshcat server in the background (start_meshcat also works
+    #    inside Docker, where Meshcat must listen on all interfaces)
+    meshcat = start_meshcat()
 
     # 2. Initialize the visualizer tool
     visualizer = ModelVisualizer(meshcat=meshcat)

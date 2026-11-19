@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>custom_models</name>
+  <version>0.0.1</version>
+  <description>Robot, target and scene files for the Where Is My Phone project.</description>
+  <maintainer email="team21@example.com">Team 2.1</maintainer>
+  <license>MIT</license>
+</package>

@@ -1,0 +1,8 @@
+# Navigation scene: living room (with the target phone) + mobile manipulator.
+# The robot's start pose and the arm's stow posture are set in wimp/scene.py
+# (load_scene), so the robot file itself stays scene-independent.
+directives:
+- add_directives:
+    file: package://living_room/living_room_scene.dmd.yaml
+- add_directives:
+    file: package://custom_models/mobile_manipulator.dmd.yaml
