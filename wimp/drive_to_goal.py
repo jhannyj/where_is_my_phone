@@ -20,6 +20,7 @@ from pydrake.all import Rgba, Simulator
 from wimp import scene, sim
 from wimp.planning.base_planner import BasePlanner, wrap_angle
 from wimp.planning.planning_scene import ENV_PADDING
+from wimp.planning.car_base_planner import CarBasePlanner
 
 # Default goal: east side of the room, south of the coffee table, facing +x.
 DEFAULT_GOAL = (3.2, -2.0, 0.0)
@@ -47,9 +48,11 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--html", default=os.path.join(scene.REPO_ROOT, "outputs", "drive_to_goal.html"))
     ap.add_argument("--wait", action="store_true", help="keep Meshcat open until Enter")
+    ap.add_argument("--car", action="store_true", help="use Reeds-Shepp car steering")
+    ap.add_argument("--radius", type=float, default=0.6, help="car turning radius (m)")
     args = ap.parse_args()
 
-    planner = BasePlanner()
+    planner = CarBasePlanner(turning_radius=args.radius) if args.car else BasePlanner()
     ps = planner.ps
     q_start, q_goal = planner.default_base_q(), np.array(args.goal)
     print(f"start (x, y, yaw) = {np.round(q_start, 3)}, goal = {np.round(q_goal, 3)}")

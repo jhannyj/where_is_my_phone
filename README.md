@@ -98,7 +98,9 @@ Native: run the commands as shown. Docker: put `./docker_run.sh` in front.
 ### Fetch the phone: drive, grasp, lift (the main demo)
 
 ```sh
-python -m wimp.fetch_phone                        # phone at its default pose
+python -m wimp.fetch_phone                        # phone at its default pose (skid-steer base)
+python -m wimp.fetch_phone --car                  # Reeds-Shepp car steering (no spinning in place)
+python -m wimp.fetch_phone --car --radius 0.5     # custom car turning radius in meters (default 0.6)
 python -m wimp.fetch_phone --phone 2.7 0.2 135    # phone at x, y (m), yaw (deg) on the coffee table
 python -m wimp.fetch_phone --verbose              # also print a grasp timeline
 python -m wimp.fetch_phone --wait                 # keep the live viewer open at the end
@@ -123,6 +125,8 @@ y in [-0.55, 0.55] (the table top spans x 2.5–3.1, y −0.6–0.6, z = 0.45).
 ```sh
 python -m wimp.drive_to_goal                          # default goal
 python -m wimp.drive_to_goal --goal 1.1 3.9 1.57      # x, y (m), yaw (rad)
+python -m wimp.drive_to_goal --car                    # Reeds-Shepp car steering (forward/reverse arcs)
+python -m wimp.drive_to_goal --car --radius 0.6       # custom car turning radius (m)
 ```
 
 It prints the planning stats, the final goal error, the maximum sideways
@@ -185,7 +189,8 @@ Enter in the terminal to quit.
 | Docker: `Cannot connect to the Docker daemon` | Start Docker Desktop and wait until it says it's running. |
 | Docker: port 7000 already in use | Stop the other Meshcat or container (`docker ps`, then `docker stop <id>`). |
 | `FAILURE` or `no reachable base pose found` | Try another `--seed`, and check that `--phone` is on the table (section 3). Then report it, with the command, to whoever owns that part. |
-
+| `No module named pytest` | Run `uv pip install pytest` inside your active venv. |
+| `--car` planning is slow or fails to park | A large `--radius` (e.g., `0.8` m) makes tight turns near furniture harder; try `--radius 0.45`–`0.6`. |
 ---
 
 ## 6. Repo map
@@ -195,7 +200,7 @@ Enter in the terminal to quit.
 | `living_room_scene/` | Room, furniture and phone models + `living_room_scene.dmd.yaml` (package `living_room`). The room spans x, y in [−5, 5] m. |
 | `models/` | Robot: `mobile_base.sdf`, `mobile_manipulator.dmd.yaml` (base + iiwa 14 + WSG + ZED camera), `zed_camera.sdf`; `nav_scene.dmd.yaml` = room + robot (package `custom_models`). |
 | `wimp/scene.py` | Loads the scene; robot start pose, arm stow posture. |
-| `wimp/planning/` | `rrt_connect.py` (generic RRT-Connect + shortcutting), `diff_drive.py` (skid-steer turn-drive-turn steering), `base_planner.py`, `arm_planner.py`, `planning_scene.py` (shared collision checker). |
+| `wimp/planning/` | `rrt_connect.py` (generic RRT-Connect + shortcutting), `diff_drive.py` (skid-steer turn-drive-turn steering), `reeds_shepp.py` (car-like forward/reverse arc steering), `base_planner.py` (skid-steer base planner), `car_base_planner.py` (Reeds-Shepp base planner), `arm_planner.py`, `planning_scene.py` (shared collision checker). |
 | `wimp/grasping/` | `antipodal.py` (grasp sampling), `gripper_checker.py`, `kinematics.py` (IK, differential IK), `base_placement.py` (where to park). |
 | `wimp/sim.py` | Physics simulation with joint PD control. |
 | `wimp/fetch_phone.py`, `wimp/drive_to_goal.py` | The demos above. |

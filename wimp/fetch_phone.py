@@ -30,6 +30,7 @@ from wimp.grasping.kinematics import diff_ik_line, pose_error
 from wimp.planning.arm_planner import plan_arm_path, time_arm_path
 from wimp.planning.base_planner import BasePlanner
 from wimp.planning.planning_scene import PlanningScene
+from wimp.planning.car_base_planner import CarBasePlanner
 
 PHONE_SIZE = (0.075, 0.15, 0.015)
 LIFT_HEIGHT = 0.15
@@ -44,13 +45,16 @@ def main():
     ap.add_argument("--verbose", action="store_true", help="print a grasp timeline")
     ap.add_argument("--phone", type=float, nargs=3, metavar=("X", "Y", "YAW_DEG"),
                     help="override the phone pose (lying flat on the coffee table)")
+    ap.add_argument("--car", action="store_true", help="use Reeds-Shepp car steering")
+    ap.add_argument("--radius", type=float, default=0.6, help="car turning radius (m)")
     args = ap.parse_args()
     rng = np.random.default_rng(args.seed)
     t_all = time.time()
 
     phone_pose = scene.phone_on_table(*args.phone) if args.phone else None
     ps = PlanningScene(phone_pose=phone_pose)
-    base_planner = BasePlanner(ps)
+    # base_planner = BasePlanner(ps)
+    base_planner = CarBasePlanner(ps, turning_radius=args.radius) if args.car else BasePlanner(ps)
     q_base0 = ps.default_base_q()
     X_WO = ps.phone_pose()  # privileged
     print(f"phone at {np.round(X_WO.translation(), 3)}")
@@ -84,7 +88,7 @@ def main():
     base_plan = base_plans[tuple(plan.q_base)]
     if base_plan is None:
         raise SystemExit("base path planning failed")
-    print(BasePlanner.describe(base_plan))
+    print(base_planner.describe(base_plan))
 
     # 4. arm path stow -> pregrasp
     arm_path = plan_arm_path(ps, plan.q_base, ps.arm_stow(), plan.q_pregrasp, seed=args.seed)
