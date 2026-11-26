@@ -1,12 +1,6 @@
-"""
-Persistent world-frame voxel map from a Drake depth camera,
-plus a simple robot-vs-voxel collision check.
-"""
-from html import parser
+"""Build and exercise a persistent world-frame voxel map from a Drake depth camera."""
 
 import numpy as np
-from scipy.spatial import cKDTree # helps calculate distance from voxels to robot spheres
-from voxel_map_functions import *
 
 from pydrake.all import (
     AbstractValue,
@@ -20,114 +14,137 @@ from pydrake.all import (
     DepthRenderCamera,
     DiagramBuilder,
     LeafSystem,
-    LoadModelDirectives,
     MakeRenderEngineVtk,
     Parser,
-    PointCloud,
-    ProcessModelDirectives,
     RenderCameraCore,
     RenderEngineVtkParams,
     RgbdSensor,
     RigidTransform,
     RotationMatrix,
-    RollPitchYaw,
     Simulator,
 )
 
-VOXEL_SIZE = 0.03          # 3 cm voxels
+from wimp import scene
+from wimp.voxel_map_functions import (
+    MAP_PERIOD,
+    VOXEL_SIZE,
+    VoxelMap,
+    VoxelMapper,
+    in_collision,
+    robot_collision_geometries,
+    robot_geometry_poses,
+)
 
-MIN_HITS = 2               # observations before a voxel counts as occupied
+IMG_W, IMG_H, FOV_Y = 320, 240, np.pi / 3
+MAX_RANGE = 5.0
 
-MAP_PERIOD = 0.1           # s, how often the map is updated
-
-ROBOT_SPHERE_R = 0.08      # m, rough link thickness (used for masking + collision)
-
-SELF_MASK_MARGIN = 0.05    # m, extra margin when removing robot's own points
-
-IMG_W, IMG_H, FOV_Y = 320, 240, np.pi / 3 # image width, height, and vertical field of view (radians)
-
-MAX_RANGE = 5.0 # 5 m max range perception---good for living room scenario
+# Camera optical frame relative to the camera body frame.
+X_BODY_CAM = RigidTransform(RotationMatrix(np.array([
+    [0, 0, 1],
+    [-1, 0, 0],
+    [0, -1, 0],
+])))
 
 
-ROBOT_URL = "where_is_my_phone/models/mobile_manipulator.dmd.yaml"
-X_BODY_CAM = RigidTransform(RotationMatrix(np.array([[0, 0, 1],
-                                               [-1, 0, 0],
-                                               [0, -1, 0]])))
-ROOM_SDF = "where_is_my_phone/models/living_room/living_room_scene.dmd.yaml"
+class _CameraPoseInWorld(LeafSystem):
+    """Compose camera body's world pose with its body-to-camera extrinsic."""
+
+    def __init__(self, X_BODY_CAM):
+        super().__init__()
+        self.X_BODY_CAM = X_BODY_CAM
+        self.body_pose_input = self.DeclareAbstractInputPort(
+            "body_pose", AbstractValue.Make(RigidTransform()))
+        self.DeclareAbstractOutputPort(
+            "camera_pose",
+            lambda: AbstractValue.Make(RigidTransform()),
+            self._calc_camera_pose,
+        )
+
+    def _calc_camera_pose(self, context, output):
+        output.set_value(self.body_pose_input.Eval(context) @ self.X_BODY_CAM)
+
 
 def build():
+    """Build room + robot + RGB-D sensor and connect the voxel mapper."""
     builder = DiagramBuilder()
     plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=1e-3)
     parser = Parser(plant)
-
-    ProcessModelDirectives(LoadModelDirectives(ROBOT_URL), plant, parser)
-    robot = parser.AddModels(ROBOT_URL)    
-    parser.AddModelsFromString(ROOM_SDF, "sdf")
-
-    CAMERA_BODY = plant.GetBodyByName("camera_body", plant.GetModelInstanceByName("zed_camera"))
-
-    # scene finalization
+    scene.load_scene(parser)
     plant.Finalize()
 
-    # Initializng the camera parameters
-    cam_body = plant.GetBodyByName(CAMERA_BODY, robot)
-    scene_graph.AddRenderer("renderer", MakeRenderEngineVtk(RenderEngineVtkParams()))
-    info = CameraInfo(width=IMG_W, height=IMG_H, fov_y=FOV_Y)
-    core = RenderCameraCore(info, ClippingRange(0.1, MAX_RANGE + 1), RigidTransform()) # use identity matrix for the camera pose in the camera frame
-    color_cam = ColorRenderCamera(core, show_window=True) # show_window=True to visualize the camera view
-    depth_cam = DepthRenderCamera(core, DepthRange(0.1, MAX_RANGE))
+    scene_graph.AddRenderer(
+        "renderer", MakeRenderEngineVtk(RenderEngineVtkParams()))
+    camera_instance = plant.GetModelInstanceByName(scene.CAMERA_INSTANCE)
+    camera_body = plant.GetBodyByName("camera_body", camera_instance)
 
+    info = CameraInfo(width=IMG_W, height=IMG_H, fov_y=FOV_Y)
+    core = RenderCameraCore(
+        info, ClippingRange(0.1, MAX_RANGE + 1), RigidTransform())
+    color_camera = ColorRenderCamera(core, show_window=True)
+    depth_camera = DepthRenderCamera(core, DepthRange(0.1, MAX_RANGE))
     camera_sensor = builder.AddSystem(RgbdSensor(
-        plant.GetBodyFrameIdOrThrow(cam_body.index()), X_BODY_CAM,
-        color_cam, depth_cam))
+        plant.GetBodyFrameIdOrThrow(camera_body.index()), X_BODY_CAM,
+        color_camera, depth_camera))
     builder.Connect(scene_graph.get_query_output_port(),
                     camera_sensor.query_object_input_port())
 
-    # Depth -> world-frame point cloud. camera_pose input is X_PC with P = world.
-    d2pc = builder.AddSystem(DepthImageToPointCloud(info, fields=BaseField.kXYZs))
+    depth_to_cloud = builder.AddSystem(
+        DepthImageToPointCloud(info, fields=BaseField.kXYZs))
     builder.Connect(camera_sensor.depth_image_32F_output_port(),
-                    d2pc.depth_image_input_port())
+                    depth_to_cloud.depth_image_input_port())
+    camera_pose = builder.AddSystem(_CameraPoseInWorld(X_BODY_CAM))
     builder.Connect(camera_sensor.body_pose_in_world_output_port(),
-                    d2pc.GetInputPort("camera_pose"))
+                    camera_pose.GetInputPort("body_pose"))
+    builder.Connect(camera_pose.GetOutputPort("camera_pose"),
+                    depth_to_cloud.GetInputPort("camera_pose"))
 
+    robot_bodies = [
+        body_index
+        for instance in scene.robot_instances(plant)
+        for body_index in plant.GetBodyIndices(instance)
+    ]
+    collision_geometries = robot_collision_geometries(
+        plant, robot_bodies, scene_graph)
     voxel_map = VoxelMap(VOXEL_SIZE)
-    robot_body_indices = [plant.GetBodyIndices(robot)[i] for i in range(plant.num_bodies(robot))]
-
-    mapper = builder.AddSystem(VoxelMapper(voxel_map, robot_body_indices))
-    builder.Connect(d2pc.GetOutputPort("point_cloud"), mapper.GetInputPort("point_cloud"))
-    builder.Connect(plant.get_body_poses_output_port(), mapper.GetInputPort("body_poses"))
+    mapper = builder.AddSystem(VoxelMapper(voxel_map, collision_geometries))
+    builder.Connect(depth_to_cloud.GetOutputPort("point_cloud"),
+                    mapper.GetInputPort("point_cloud"))
+    builder.Connect(plant.get_body_poses_output_port(),
+                    mapper.GetInputPort("body_poses"))
 
     diagram = builder.Build()
-    return diagram, plant, voxel_map, robot, robot_body_indices
+    return diagram, plant, scene_graph, voxel_map, robot_bodies
 
- 
+
 def main():
-    diagram, plant, voxel_map, robot, robot_bodies = build()
+    diagram, plant, scene_graph, voxel_map, robot_bodies = build()
     simulator = Simulator(diagram)
-    root_ctx = simulator.get_mutable_context()
-    plant_ctx = plant.GetMyMutableContextFromRoot(root_ctx)
+    root_context = simulator.get_mutable_context()
+    plant_context = plant.GetMyMutableContextFromRoot(root_context)
+    indices = scene.robot_indices(plant)
 
-    # test the robot's collision shapes at a few configurations, and print the number of occupied voxels
-    n = plant.num_positions(robot)
+    # Move the base through a short sequence while the camera integrates scans.
+    q = plant.GetPositions(plant_context).copy()
     t = 0.0
-    for q1 in np.linspace(-1.0, 1.0, 40):       
-        q = np.zeros(n)
-        q[0] = q1
-        q[1] = 0.5
-        # No controller here, so we just teleport the joints each step.
-        plant.SetPositions(plant_ctx, robot, q)
-        plant.SetVelocities(plant_ctx, robot, np.zeros(plant.num_velocities(robot)))
+    for x in np.linspace(-3.5, -2.5, 40):
+        q[indices.base_q[0]] = x
+        q[indices.base_q[1]] = 0.5
+        plant.SetPositions(plant_context, q)
         t += MAP_PERIOD
         simulator.AdvanceTo(t)
-        print(f"t={t:.1f}  occupied voxels: {len(voxel_map.occupied_centers())}")
+        print(f"t={t:.1f} occupied voxels: {len(voxel_map.occupied_centers())}")
 
-    # Collision check for a candidate configuration.
-    q_test = np.zeros(n)
-    q_test[1] = 1.2
-    plant.SetPositions(plant_ctx, robot, q_test)
-    poses = plant.get_body_poses_output_port().Eval(plant_ctx)
-    robot_collision_shapes = robot_collision_shapes(plant, plant_ctx, robot, diagram.GetSubsystemByName("scene_graph"))
-    print("q_test in collision:", in_collision(voxel_map, spheres))
+    # Evaluate the real registered robot collision shapes at another base pose.
+    q[indices.base_q[0]] = -2.0
+    plant.SetPositions(plant_context, q)
+    simulator.AdvanceTo(t + MAP_PERIOD)
+    body_poses = plant.get_body_poses_output_port().Eval(plant_context)
+    geometry_poses_W = robot_geometry_poses(
+        body_poses,
+        robot_collision_geometries(plant, robot_bodies, scene_graph),
+    )
+    print("candidate configuration in collision:",
+          in_collision(voxel_map, geometry_poses_W))
 
 
 if __name__ == "__main__":

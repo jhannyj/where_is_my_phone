@@ -1,83 +1,50 @@
+"""World-frame voxel mapping and collision checks against robot collision geometry.
+
+Occupied voxels are conservatively checked against the robot's registered
+Drake collision shapes. This module deliberately has no scene/model loading at
+import time; callers provide the plant, scene graph, body poses, and point cloud.
 """
-Persistent world-frame voxel map from a Drake depth camera,
-plus a simple robot-vs-voxel collision check.
-"""
+
+from typing import NamedTuple, Sequence
+
 import numpy as np
-from scipy.spatial import cKDTree # helps calculate distance from voxels to robot spheres
+from scipy.spatial import cKDTree
 
-from pydrake.all import (
-    AbstractValue,
-    AddMultibodyPlantSceneGraph,
-    BaseField,
-    CameraInfo,
-    ClippingRange,
-    ColorRenderCamera,
-    DepthImageToPointCloud,
-    DepthRange,
-    DepthRenderCamera,
-    DiagramBuilder,
-    LeafSystem,
-    MakeRenderEngineVtk,
-    Parser,
-    PointCloud,
-    RenderCameraCore,
-    RenderEngineVtkParams,
-    RgbdSensor,
-    RigidTransform,
-    RollPitchYaw,
-    Simulator,
-)
+from pydrake.all import AbstractValue, LeafSystem, PointCloud, RigidTransform
+from pydrake.geometry import Box, Capsule, Cylinder, Sphere
 
-VOXEL_SIZE = 0.03          # 3 cm voxels
-MIN_HITS = 2               # observations before a voxel counts as occupied
-MAP_PERIOD = 0.1           # s, how often the map is updated
-ROBOT_SPHERE_R = 0.08      # m, rough link thickness (used for masking + collision)
-SELF_MASK_MARGIN = 0.05    # m, extra margin when removing robot's own points
-IMG_W, IMG_H, FOV_Y = 320, 240, np.pi / 3
-MAX_RANGE = 5.0
-
-ROBOT_URL = "where_is_my_phone/models/mobile_manipulator.dmd.yaml"
-#CAMERA_BODY = ""
-#X_BODY_CAM = RigidTransform(RollPitchYaw(0, 0, 0), [0, 0, 0.1])  # TODO: mounting pose
-ROOM_SDF = "where_is_my_phone/models/living_room/living_room_scene.dmd.yaml"
-
-parser = Parser(plant)
-ProcessModelDirectives(LoadModelDirectives("mobile_manipulator.dmd.yaml"), plant, parser)
-plant.Finalize()
-
-cam_body = plant.GetBodyByName("camera_body", plant.GetModelInstanceByName("zed_camera"))
-
-# Rotation from Drake's camera convention to the ZED body frame (see below)
-X_BC = RigidTransform(RotationMatrix(np.array([[0, 0, 1],
-                                               [-1, 0, 0],
-                                               [0, -1, 0]])))
-
-sensor = builder.AddSystem(RgbdSensor(plant.GetBodyFrameIdOrThrow(cam_body.index()), X_BC, color_cam, depth_cam))
+VOXEL_SIZE = 0.03
+MIN_HITS = 2
+MAP_PERIOD = 0.1
+SELF_MASK_MARGIN = 0.05
 
 
+class RobotCollisionGeometry(NamedTuple):
+    """A Drake collision shape attached to a body, with its body-frame pose."""
 
-# get collision pose for each robot link in mobile manipulator
-def robot_collision_shapes(plant, plant_ctx, robot, scene_graph):
-    inspector = scene_graph.model_inspector()
-    out = []
-    for bi in plant.GetBodyIndices(robot):
-        body = plant.get_body(bi)
-        X_WB = plant.EvalBodyPoseInWorld(plant_ctx, body)
-        for gid in plant.GetCollisionGeometriesForBody(body):
-            X_WG = X_WB @ inspector.GetPoseInFrame(gid)
-            out.append((inspector.GetShape(gid), X_WG))
-    return out
+    body_index: int
+    shape: object
+    X_BG: RigidTransform
 
 
 class VoxelMap:
-    def __init__(self, voxel_size):
-        self.s = voxel_size
-        self.hits = {}          # (i, j, k) -> observation count
+    def __init__(self, voxel_size: float = VOXEL_SIZE):
+        if voxel_size <= 0:
+            raise ValueError("voxel_size must be positive")
+        self.s = float(voxel_size)
+        self.hits = {}  # (i, j, k) -> number of observations
         self._tree = None
+        self._occupied = np.empty((0, 3))
         self._dirty = True
 
     def integrate(self, pts_W):
-        """pts_W: Nx3 world-frame points"""
+        """Integrate Nx3 world-frame points into the persistent hit map."""
+        pts_W = np.asarray(pts_W)
+        if pts_W.size == 0:
+            return
+        if pts_W.ndim != 2 or pts_W.shape[1] != 3:
+            raise ValueError("pts_W must have shape (N, 3)")
+        pts_W = pts_W[np.isfinite(pts_W).all(axis=1)]
         if len(pts_W) == 0:
             return
         idx = np.unique(np.floor(pts_W / self.s).astype(int), axis=0)
@@ -85,43 +52,162 @@ class VoxelMap:
             self.hits[key] = self.hits.get(key, 0) + 1
         self._dirty = True
 
-    def occupied_centers(self, min_hits=MIN_HITS):
+    def occupied_centers(self, min_hits: int = MIN_HITS):
         keys = [k for k, n in self.hits.items() if n >= min_hits]
         if not keys:
             return np.empty((0, 3))
-        return (np.array(keys) + 0.5) * self.s
+        return (np.asarray(keys, dtype=float) + 0.5) * self.s
 
     def tree(self):
+        """KD-tree of occupied voxel centers, cached until the map changes."""
         if self._dirty:
-            c = self.occupied_centers()
-            self._tree = cKDTree(c) if len(c) else None
+            self._occupied = self.occupied_centers()
+            self._tree = cKDTree(self._occupied) if len(self._occupied) else None
             self._dirty = False
         return self._tree
 
-
-def robot_spheres_W(body_poses, robot_body_indices, per_link=4):
-    """Return Mx3 sphere centers (world) interpolated between link origins.
-    TODO: replace with something tighter (e.g. per-link collision geometry)."""
-    origins = np.array([body_poses[i].translation() for i in robot_body_indices])
-    pts = [origins[0]]
-    for a, b in zip(origins[:-1], origins[1:]):
-        for t in np.linspace(0, 1, per_link + 1)[1:]:
-            pts.append((1 - t) * a + t * b)
-    return np.array(pts)
+    def _occupied_centers_cached(self):
+        self.tree()
+        return self._occupied
 
 
-def in_collision(voxel_map, spheres_W, radius=ROBOT_SPHERE_R):
-    tree = voxel_map.tree()
-    if tree is None:
+def robot_collision_geometries(plant, robot_body_indices, scene_graph):
+    """Return each robot collision shape and its pose in its body frame."""
+    inspector = scene_graph.model_inspector()
+    geometries = []
+    for body_index in robot_body_indices:
+        body = plant.get_body(body_index)
+        for geometry_id in plant.GetCollisionGeometriesForBody(body):
+            geometries.append(RobotCollisionGeometry(
+                int(body_index),
+                inspector.GetShape(geometry_id),
+                inspector.GetPoseInFrame(geometry_id),
+            ))
+    return geometries
+
+
+def robot_geometry_poses(body_poses, geometries: Sequence[RobotCollisionGeometry]):
+    """Evaluate world poses for registered robot collision geometries."""
+    return [
+        (geometry.shape, body_poses[geometry.body_index] @ geometry.X_BG)
+        for geometry in geometries
+    ]
+
+
+def _shape_bounding_radius(shape) -> float:
+    """Return the radius of a sphere enclosing a supported Drake primitive."""
+    if isinstance(shape, Sphere):
+        return float(shape.radius())
+    if isinstance(shape, Box):
+        return float(np.linalg.norm([
+            shape.width() / 2, shape.depth() / 2, shape.height() / 2
+        ]))
+    if isinstance(shape, Cylinder):
+        return float(np.hypot(shape.radius(), shape.length() / 2))
+    if isinstance(shape, Capsule):
+        return float(shape.radius() + shape.length() / 2)
+    raise TypeError(
+        f"Unsupported robot collision shape {type(shape).__name__}; "
+        "add a conservative distance implementation before using it"
+    )
+
+
+def _signed_distance_to_shape(points_G, shape) -> np.ndarray:
+    """Signed point-to-shape distance in the shape frame for Drake primitives.
+
+    Negative values are inside. Cylinder and capsule axes are local z, as in
+    Drake's geometry convention.
+    """
+    p = np.asarray(points_G, dtype=float)
+    if isinstance(shape, Sphere):
+        return np.linalg.norm(p, axis=1) - shape.radius()
+    if isinstance(shape, Box):
+        q = np.abs(p) - np.array([
+            shape.width(), shape.depth(), shape.height()
+        ]) / 2
+        return (np.linalg.norm(np.maximum(q, 0), axis=1)
+                + np.minimum(np.max(q, axis=1), 0))
+    if isinstance(shape, Cylinder):
+        radial = np.linalg.norm(p[:, :2], axis=1) - shape.radius()
+        axial = np.abs(p[:, 2]) - shape.length() / 2
+        q = np.column_stack((radial, axial))
+        return (np.linalg.norm(np.maximum(q, 0), axis=1)
+                + np.minimum(np.max(q, axis=1), 0))
+    if isinstance(shape, Capsule):
+        z = np.clip(p[:, 2], -shape.length() / 2, shape.length() / 2)
+        axis_points = np.column_stack((np.zeros(len(p)), np.zeros(len(p)), z))
+        return np.linalg.norm(p - axis_points, axis=1) - shape.radius()
+    raise TypeError(
+        f"Unsupported robot collision shape {type(shape).__name__}; "
+        "add a conservative distance implementation before using it"
+    )
+
+
+def _points_in_geometry_frame(points_W, X_WG):
+    # Row-vector form of p_G = R_GW (p_W - p_WG).
+    return (np.asarray(points_W) - X_WG.translation()) @ X_WG.rotation().matrix()
+
+
+def _points_near_geometry(points_W, shape, X_WG, clearance):
+    """Select points within clearance of a transformed collision shape."""
+    points_W = np.asarray(points_W)
+    if len(points_W) == 0:
+        return np.zeros(0, dtype=bool)
+    broad_radius = _shape_bounding_radius(shape) + clearance
+    near = np.linalg.norm(points_W - X_WG.translation(), axis=1) <= broad_radius
+    result = np.zeros(len(points_W), dtype=bool)
+    if np.any(near):
+        points_G = _points_in_geometry_frame(points_W[near], X_WG)
+        result[near] = _signed_distance_to_shape(points_G, shape) <= clearance
+    return result
+
+
+def in_collision(voxel_map: VoxelMap, robot_geometry_poses_W,
+                 min_hits: int = MIN_HITS) -> bool:
+    """Check actual robot collision shapes against observed occupied voxels.
+
+    The center of a voxel is checked with a radius of sqrt(3)*voxel_size/2,
+    enclosing the voxel cube. This is conservative and may report a collision
+    near a voxel corner. This checks observed occupied space only; it does not
+    treat unknown or unobserved space as free-space evidence.
+    """
+    centers = (voxel_map._occupied_centers_cached() if min_hits == MIN_HITS
+               else voxel_map.occupied_centers(min_hits=min_hits))
+    if len(centers) == 0:
         return False
-    d, _ = tree.query(spheres_W)
-    return bool(np.any(d < radius + 0.5 * voxel_map.s))
+
+    tree = voxel_map.tree() if min_hits == MIN_HITS else cKDTree(centers)
+    voxel_radius = np.sqrt(3) * voxel_map.s / 2
+    for shape, X_WG in robot_geometry_poses_W:
+        candidates = tree.query_ball_point(
+            X_WG.translation(), _shape_bounding_radius(shape) + voxel_radius
+        )
+        if not candidates:
+            continue
+        points_G = _points_in_geometry_frame(centers[candidates], X_WG)
+        if np.any(_signed_distance_to_shape(points_G, shape) <= voxel_radius):
+            return True
+    return False
+
+
+def points_inside_robot_geometry(points_W, robot_geometry_poses_W,
+                                 margin: float = SELF_MASK_MARGIN):
+    """Mask depth returns on or near the robot using its collision geometries."""
+    points_W = np.asarray(points_W)
+    masked = np.zeros(len(points_W), dtype=bool)
+    for shape, X_WG in robot_geometry_poses_W:
+        masked |= _points_near_geometry(points_W, shape, X_WG, margin)
+    return masked
+
 
 class VoxelMapper(LeafSystem):
-    def __init__(self, voxel_map, robot_body_indices, period=MAP_PERIOD):
+    """Periodically integrate a point cloud after masking robot self-returns."""
+
+    def __init__(self, voxel_map: VoxelMap, robot_geometries,
+                 period: float = MAP_PERIOD):
         super().__init__()
         self.map = voxel_map
-        self.robot_bodies = robot_body_indices
+        self.robot_geometries = list(robot_geometries)
         self.cloud_port = self.DeclareAbstractInputPort(
             "point_cloud", AbstractValue.Make(PointCloud()))
         self.poses_port = self.DeclareAbstractInputPort(
@@ -130,17 +216,11 @@ class VoxelMapper(LeafSystem):
 
     def _update(self, context):
         cloud = self.cloud_port.Eval(context)
-        poses = self.poses_port.Eval(context)
-
-        pts = np.asarray(cloud.xyzs()).T                      # Nx3, world frame
-        pts = pts[np.isfinite(pts).all(axis=1)]               # drop invalid pixels
-        if len(pts) == 0:
+        body_poses = self.poses_port.Eval(context)
+        pts_W = np.asarray(cloud.xyzs()).T
+        pts_W = pts_W[np.isfinite(pts_W).all(axis=1)]
+        if len(pts_W) == 0:
             return
-
-        # Drop the robot's own points so the arm doesn't map itself.
-        spheres = robot_spheres_W(poses, self.robot_bodies)
-        d, _ = cKDTree(spheres).query(pts)
-        pts = pts[d > ROBOT_SPHERE_R + SELF_MASK_MARGIN]
-
-        # TODO: exclude the grasp target (phone) (if necessary)
-        self.map.integrate(pts)
+        geometry_poses_W = robot_geometry_poses(body_poses, self.robot_geometries)
+        pts_W = pts_W[~points_inside_robot_geometry(pts_W, geometry_poses_W)]
+        self.map.integrate(pts_W)
